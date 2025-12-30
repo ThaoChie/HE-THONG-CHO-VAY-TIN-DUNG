@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("EasyCredit.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2f4e0ede40f8b008349ca723593bbb14591168c8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+40c394ec451255f96e07cc96ebc51d06120cb6c5")]
 [assembly: System.Reflection.AssemblyProductAttribute("EasyCredit.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("EasyCredit.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

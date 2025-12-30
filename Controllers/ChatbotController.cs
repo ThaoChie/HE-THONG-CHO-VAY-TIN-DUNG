@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using EasyCredit.API.Services; // Import Service AI
 using Microsoft.AspNetCore.Authorization;
+using EasyCredit.API.Data;     // Import Database
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace EasyCredit.API.Controllers;
 
@@ -9,20 +12,20 @@ namespace EasyCredit.API.Controllers;
 public class ChatbotController : ControllerBase
 {
     private readonly LoanRecommendationService _aiService;
+    private readonly ApplicationDbContext _context; // <-- Đã thêm lại cái này
 
-    public ChatbotController(LoanRecommendationService aiService)
+    // Inject cả 2 dịch vụ vào đây
+    public ChatbotController(LoanRecommendationService aiService, ApplicationDbContext context)
     {
         _aiService = aiService;
+        _context = context;
     }
 
-    // API nhận input từ Chatbot -> Trả về gói vay
+    // 1. API nhận input từ Chatbot -> Trả về gói vay (AI)
     [HttpPost("recommend-ai")]
     public IActionResult Recommend([FromBody] LoanInputDto input)
     {
-        // 1. Gọi AI dự đoán
         var predictedPackage = _aiService.Predict(input.Amount, input.Income, input.Term);
-
-        // 2. Map kết quả dự đoán ra chi tiết gói vay để hiển thị Frontend
         object packageDetail = null;
 
         if (predictedPackage == "VIP")
@@ -43,7 +46,7 @@ public class ChatbotController : ControllerBase
                 Desc = "Phù hợp với nhu cầu và thu nhập hiện tại của bạn."
             };
         }
-        else // BASIC
+        else 
         {
             packageDetail = new {
                 Name = "🚀 GÓI KHỞI ĐỘNG (AI Đề xuất)",
@@ -59,9 +62,38 @@ public class ChatbotController : ControllerBase
             Message = "AI đã phân tích nhu cầu của bạn và tìm thấy gói phù hợp nhất:" 
         });
     }
+
+    // 2. API Tra cứu trạng thái hồ sơ (Mới thêm)
+    [HttpGet("check-status")]
+    [Authorize]
+    public async Task<IActionResult> CheckMyStatus()
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString)) return Unauthorized();
+        var userId = int.Parse(userIdString);
+
+        // Dùng _context để tìm đơn vay
+        var lastLoan = await _context.LoanApplications
+                                     .Where(l => l.UserId == userId)
+                                     .OrderByDescending(l => l.CreatedAt)
+                                     .FirstOrDefaultAsync();
+
+        if (lastLoan == null)
+        {
+            return Ok(new { Found = false, Message = "Bạn chưa có hồ sơ vay nào trên hệ thống." });
+        }
+
+        return Ok(new { 
+            Found = true, 
+            Id = lastLoan.Id, 
+            Amount = lastLoan.Amount, 
+            Status = lastLoan.Status,
+            Date = lastLoan.CreatedAt.ToString("dd/MM/yyyy")
+        });
+    }
 }
 
-// 👇👇👇 QUAN TRỌNG: Class này phải nằm ở đây (hoặc trong thư mục DTOs)
+// Class DTO
 public class LoanInputDto
 {
     public float Amount { get; set; }
