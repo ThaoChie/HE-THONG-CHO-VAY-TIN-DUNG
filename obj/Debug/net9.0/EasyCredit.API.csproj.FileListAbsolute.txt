@@ -226,3 +226,5 @@
 /Users/thaochie/Documents/EasyCredit.API/bin/Debug/net9.0/runtimes/win-arm64/native/LdaNative.dll
 /Users/thaochie/Documents/EasyCredit.API/bin/Debug/net9.0/runtimes/win-x64/native/LdaNative.dll
 /Users/thaochie/Documents/EasyCredit.API/bin/Debug/net9.0/runtimes/win-x86/native/LdaNative.dll
+/Users/thaochie/Documents/EasyCredit.API/bin/Debug/net9.0/MySqlConnector.dll
+/Users/thaochie/Documents/EasyCredit.API/bin/Debug/net9.0/Pomelo.EntityFrameworkCore.MySql.dll

@@ -3,28 +3,42 @@ using EasyCredit.API.Services;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
 using FluentValidation.AspNetCore;
-using FluentValidation; // Add this
+using FluentValidation;
 using EasyCredit.API.Validators;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
-
-// <--- 2. QUAN TRỌNG: Đăng ký License miễn phí (Bắt buộc)
+// 1. Đăng ký License QuestPDF
 QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllers();
+// 2. Cấu hình Database (Hỗ trợ MySQL với tính năng tự động kết nối lại)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseMySql(
+        connectionString, 
+        ServerVersion.AutoDetect(connectionString),
+        mySqlOptions => mySqlOptions.EnableRetryOnFailure() // Quan trọng khi dùng AWS RDS
+    )
+);
 
-// Register FluentValidation
+// 3. Đăng ký các dịch vụ hệ thống
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<LoanApplicationValidator>();
-// Đăng ký Service AI (Singleton vì Model chỉ cần load 1 lần)
-builder.Services.AddSingleton<EasyCredit.API.Services.LoanRecommendationService>();
 
-// Add Authentication
+// 4. Đăng ký Business Services
+builder.Services.AddSingleton<EasyCredit.API.Services.LoanRecommendationService>();
+builder.Services.AddScoped<CreditScoringService>();
+
+// 5. Cấu hình Authentication (JWT)
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var key = Encoding.UTF8.GetBytes(jwtSection["Key"] ?? throw new InvalidOperationException("JWT Key is missing"));
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -34,48 +48,41 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured")))
+            ValidIssuer = jwtSection["Issuer"],
+            ValidAudience = jwtSection["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(key)
         };
     });
 
-builder.Services.AddAuthorization(); // Add Authorization service
+builder.Services.AddAuthorization();
 
-// Đăng ký Service chấm điểm (Bộ não AI)
-builder.Services.AddScoped<CreditScoringService>();
-
-// Kết nối Database SQLite
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite("Data Source=EasyCredit.db"));
-
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-// Cấu hình CORS (Cho phép Frontend cổng 3000 gọi vào)
+// 6. Cấu hình CORS linh hoạt từ appsettings.json
+var allowedOrigins = builder.Configuration["AllowedOrigins"]?.Split(",") ?? new[] { "http://localhost:5173" };
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
         policy =>
         {
-            policy.WithOrigins("http://localhost:3000")
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials(); // Cần thiết nếu bạn dùng Cookie hoặc các loại Auth phức tạp
         });
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// 7. Cấu hình Pipeline (Thứ tự các dòng dưới đây là cực kỳ quan trọng)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+// Chạy CORS trước khi check Auth
 app.UseCors("AllowReactApp");
 
-app.UseAuthentication(); // IMPORTANT: Must be before UseAuthorization
+app.UseAuthentication(); 
 app.UseAuthorization();
 
 app.MapControllers();
