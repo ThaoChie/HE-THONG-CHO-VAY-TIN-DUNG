@@ -79,8 +79,17 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", builder =>
+    {
+        builder.AllowAnyOrigin()  // Cho phép mọi tên miền (Frontend nào cũng vào được)
+               .AllowAnyMethod()  // Cho phép mọi method (GET, POST, PUT, DELETE...)
+               .AllowAnyHeader(); // Cho phép mọi Header
+    });
+});
 // Chạy CORS trước khi check Auth
-app.UseCors("AllowReactApp");
+app.UseCors("AllowAll");
 
 app.UseAuthentication(); 
 app.UseAuthorization();
